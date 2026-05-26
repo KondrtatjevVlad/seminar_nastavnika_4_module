@@ -1,0 +1,65 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: hw_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: oil_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+
+  minio:
+    image: minio/minio
+    container_name: hw_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  jupyter:
+    image: jupyter/scipy-notebook
+    container_name: hw_jupyter
+    restart: always
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    depends_on:
+      - postgres
+      - minio
+
+  superset:
+    image: apache/superset
+    container_name: hw_superset
+    restart: always
+    user: root
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: supersecretkey
+    command: >
+      /bin/bash -c "
+      pip install psycopg2-binary &&
+      superset db upgrade &&
+      superset fab create-admin --username admin --firstname admin --lastname admin --email admin@mail.com --password admin123 || true &&
+      superset init &&
+      superset run -h 0.0.0.0 -p 8088
+      "
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  minio_data:
